@@ -256,25 +256,36 @@ def run_scenario(scenario_name, do_conversions=False):
         taxable_growth = taxable_account * investment_return
         taxable_account_after_growth = taxable_account * (1 + investment_return)
         
+        # Calculate capital gains tax on the growth
+        # Assume all growth is unrealized gains that get taxed annually at long-term rates
+        # Long-term capital gains rates for MFJ (2026 estimated):
+        # 0% up to ~$94,050, 15% up to ~$583,750, 20% above
+        # For simplicity, use 15% rate (most will fall in this bracket)
+        capital_gains_rate = 0.15
+        capital_gains_tax = taxable_growth * capital_gains_rate
+        
+        # Reduce taxable account by capital gains tax
+        taxable_account_after_tax = taxable_account_after_growth - capital_gains_tax
+        
         # Then handle surplus/deficit
         if surplus_or_deficit > 0:
             # Excess cash goes into taxable account
-            taxable_account = taxable_account_after_growth + surplus_or_deficit
+            taxable_account = taxable_account_after_tax + surplus_or_deficit
             taxable_contribution = surplus_or_deficit
             taxable_withdrawal = 0
-        elif surplus_or_deficit < 0 and taxable_account_after_growth > 0:
+        elif surplus_or_deficit < 0 and taxable_account_after_tax > 0:
             # Need to withdraw from taxable to cover shortfall
-            taxable_withdrawal = min(abs(surplus_or_deficit), taxable_account_after_growth)
-            taxable_account = taxable_account_after_growth - taxable_withdrawal
+            taxable_withdrawal = min(abs(surplus_or_deficit), taxable_account_after_tax)
+            taxable_account = taxable_account_after_tax - taxable_withdrawal
             taxable_contribution = 0
-            # Note: This withdrawal would trigger capital gains tax, but we'll simplify for now
         else:
             # No surplus and no taxable account to draw from
-            taxable_account = taxable_account_after_growth
+            taxable_account = taxable_account_after_tax
             taxable_contribution = 0
             taxable_withdrawal = 0
         
         year_data['Taxable_Growth'] = taxable_growth
+        year_data['Taxable_Cap_Gains_Tax'] = capital_gains_tax
         year_data['Taxable_Contribution'] = taxable_contribution
         year_data['Taxable_Withdrawal'] = taxable_withdrawal
         year_data['Taxable_End'] = taxable_account
