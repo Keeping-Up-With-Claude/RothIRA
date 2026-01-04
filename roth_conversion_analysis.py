@@ -220,14 +220,18 @@ def run_scenario(scenario_name, do_conversions=False):
         # More accurate: assume distributions taken mid-year, so average balance earns return
         
         # For simplicity, let's assume beginning balance grows all year, then distributions taken at end
+        trad_ira_growth = trad_ira * investment_return
         trad_ira_after_growth = trad_ira * (1 + investment_return)
         trad_ira = max(0, trad_ira_after_growth - total_ira_distribution)
         
         # Roth IRA: add conversions at beginning of year, then entire balance grows
         # This is conservative (assumes conversion happens at year start)
+        roth_ira_growth = (roth_ira + conversion) * investment_return
         roth_ira = (roth_ira + conversion) * (1 + investment_return)
         
+        year_data['Trad_IRA_Growth'] = trad_ira_growth
         year_data['Trad_IRA_End'] = trad_ira
+        year_data['Roth_IRA_Growth'] = roth_ira_growth
         year_data['Roth_IRA_End'] = roth_ira
         year_data['Total_Assets_End'] = trad_ira + roth_ira
         
