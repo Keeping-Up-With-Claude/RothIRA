@@ -209,6 +209,58 @@ def run_scenario(scenario_name, do_conversions=False):
         year_data['Taxable_Income'] = taxable_income
         year_data['Federal_Tax'] = federal_tax
         
+        # Medicare IRMAA calculation (Income Related Monthly Adjustment Amount)
+        # Applies to ages 65+ for Part B and Part D
+        # Based on MAGI from 2 years prior (but we'll use current year for simplicity)
+        # 2026 IRMAA brackets for MFJ (estimated):
+        irmaa_premium = 0
+        
+        if chris_alive and chris_age >= 65:
+            # Standard Part B premium ~$174.70/month in 2024, assume $185/month in 2026
+            base_part_b = 185 * 12
+            # Standard Part D premium varies, use ~$35/month average
+            base_part_d = 35 * 12
+            
+            # IRMAA surcharges based on MAGI (using AGI as proxy)
+            magi = total_ira_distribution  # AGI for IRMAA purposes
+            
+            if magi <= 206_000:
+                chris_irmaa = base_part_b + base_part_d
+            elif magi <= 258_000:
+                chris_irmaa = (base_part_b + 185 * 12 * 0.40) + (base_part_d + 12.90 * 12)
+            elif magi <= 322_000:
+                chris_irmaa = (base_part_b + 185 * 12 * 1.00) + (base_part_d + 33.30 * 12)
+            elif magi <= 386_000:
+                chris_irmaa = (base_part_b + 185 * 12 * 1.60) + (base_part_d + 53.80 * 12)
+            elif magi <= 750_000:
+                chris_irmaa = (base_part_b + 185 * 12 * 2.20) + (base_part_d + 74.20 * 12)
+            else:
+                chris_irmaa = (base_part_b + 185 * 12 * 2.40) + (base_part_d + 81.00 * 12)
+            
+            irmaa_premium += chris_irmaa
+        
+        if mandy_alive and mandy_age >= 65:
+            base_part_b = 185 * 12
+            base_part_d = 35 * 12
+            magi = total_ira_distribution
+            
+            if magi <= 206_000:
+                mandy_irmaa = base_part_b + base_part_d
+            elif magi <= 258_000:
+                mandy_irmaa = (base_part_b + 185 * 12 * 0.40) + (base_part_d + 12.90 * 12)
+            elif magi <= 322_000:
+                mandy_irmaa = (base_part_b + 185 * 12 * 1.00) + (base_part_d + 33.30 * 12)
+            elif magi <= 386_000:
+                mandy_irmaa = (base_part_b + 185 * 12 * 1.60) + (base_part_d + 53.80 * 12)
+            elif magi <= 750_000:
+                mandy_irmaa = (base_part_b + 185 * 12 * 2.20) + (base_part_d + 74.20 * 12)
+            else:
+                mandy_irmaa = (base_part_b + 185 * 12 * 2.40) + (base_part_d + 81.00 * 12)
+            
+            irmaa_premium += mandy_irmaa
+        
+        year_data['IRMAA_Premium'] = irmaa_premium
+        
         # Total IRA distribution
         # Before Traditional IRA is depleted: all comes from Traditional
         # After Traditional IRA is depleted: comes from Roth
@@ -324,18 +376,25 @@ with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
     
     for scenario, df in [('Baseline', baseline_df), ('With Conversions', conversion_df)]:
         total_taxes = df['Federal_Tax'].sum()
+        total_cap_gains = df['Taxable_Cap_Gains_Tax'].sum()
+        total_irmaa = df['IRMAA_Premium'].sum()
         total_conversions = df['Roth_Conversion'].sum()
         final_trad = df['Trad_IRA_End'].iloc[-1]
         final_roth = df['Roth_IRA_End'].iloc[-1]
-        total_assets = final_trad + final_roth
+        final_taxable = df['Taxable_End'].iloc[-1]
+        total_assets = final_trad + final_roth + final_taxable
         avg_surplus = df['Surplus_Deficit'].mean()
         
         summary_data.append({
             'Scenario': scenario,
-            'Total_Lifetime_Taxes': total_taxes,
+            'Total_Lifetime_Income_Taxes': total_taxes,
+            'Total_Cap_Gains_Taxes': total_cap_gains,
+            'Total_IRMAA': total_irmaa,
+            'Total_All_Taxes': total_taxes + total_cap_gains + total_irmaa,
             'Total_Conversions': total_conversions,
             'Final_Traditional_IRA': final_trad,
             'Final_Roth_IRA': final_roth,
+            'Final_Taxable_Account': final_taxable,
             'Total_Final_Assets': total_assets,
             'Avg_Annual_Surplus': avg_surplus
         })
@@ -355,11 +414,15 @@ print("="*80)
 
 for scenario, df in [('Baseline (No Conversions)', baseline_df), ('With Roth Conversions', conversion_df)]:
     print(f"\n{scenario}:")
-    print(f"  Total Lifetime Federal Taxes: ${df['Federal_Tax'].sum():,.0f}")
+    print(f"  Total Lifetime Income Taxes: ${df['Federal_Tax'].sum():,.0f}")
+    print(f"  Total Capital Gains Taxes: ${df['Taxable_Cap_Gains_Tax'].sum():,.0f}")
+    print(f"  Total IRMAA Premiums: ${df['IRMAA_Premium'].sum():,.0f}")
+    print(f"  Total All Taxes/Premiums: ${df['Federal_Tax'].sum() + df['Taxable_Cap_Gains_Tax'].sum() + df['IRMAA_Premium'].sum():,.0f}")
     print(f"  Total Roth Conversions: ${df['Roth_Conversion'].sum():,.0f}")
     print(f"  Final Traditional IRA: ${df['Trad_IRA_End'].iloc[-1]:,.0f}")
     print(f"  Final Roth IRA: ${df['Roth_IRA_End'].iloc[-1]:,.0f}")
-    print(f"  Total Final Assets: ${(df['Trad_IRA_End'].iloc[-1] + df['Roth_IRA_End'].iloc[-1]):,.0f}")
+    print(f"  Final Taxable Account: ${df['Taxable_End'].iloc[-1]:,.0f}")
+    print(f"  Total Final Assets: ${(df['Trad_IRA_End'].iloc[-1] + df['Roth_IRA_End'].iloc[-1] + df['Taxable_End'].iloc[-1]):,.0f}")
     print(f"  Average Annual Surplus/Deficit: ${df['Surplus_Deficit'].mean():,.0f}")
 
 print("\n" + "="*80)

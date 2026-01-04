@@ -10,6 +10,8 @@ More years of compounding: Money moved to Roth in 2026-2033 gets 20-30+ years of
 
 The slightly higher total taxes paid are essentially an "investment" that unlocks decades of tax-free compounding. It's classic tax arbitrage: pay 24% now to avoid 32%+ later, while gaining tax-free growth.
 
+
+
 UPDATE after considering a target account for excess RMD income in baseline, and paying cap-gains on it.
 
 Updated analysis now includes 15% long-term capital gains tax on taxable account growth each year.
@@ -25,3 +27,19 @@ Important caveats:
 This assumes they maintain exactly $100K/year spending regardless of surplus
 Estate planning considerations not modeled (Roth better for heirs)
 Assumes 15% flat cap gains rate (actual could vary by income level)
+
+
+UPDATE 2: add in IRMAA
+Final Analysis with IRMAA included:
+Baseline (No Conversions):
+
+Total Assets: $6,578,406
+Total Costs: $1,904,282 (Income Tax + Cap Gains + IRMAA)
+
+With Roth Conversions:
+
+Total Assets: $4,545,263
+Total Costs: $1,705,473 (Income Tax + IRMAA, no Cap Gains)
+
+Net Result: Baseline is better by $1.83M
+The conversion strategy pays $199K less in total costs but ends up with $2.0M less in assets. IRMAA adds $10K more cost to conversions (due to higher AGI during conversion years), but this is minor compared to the overall difference driven by the taxable account accumulation from excess RMDs.
