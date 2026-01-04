@@ -217,10 +217,9 @@ def run_scenario(scenario_name, do_conversions=False):
         trad_ira_after_growth = trad_ira * (1 + investment_return)
         trad_ira = max(0, trad_ira_after_growth - total_ira_distribution)
         
-        # Roth IRA: add conversions, then grow
-        # Conversion happens during year, so let's assume it grows for half the year
-        roth_ira_after_growth = roth_ira * (1 + investment_return)
-        roth_ira = roth_ira_after_growth + (conversion * (1 + investment_return)**0.5)
+        # Roth IRA: add conversions at beginning of year, then entire balance grows
+        # This is conservative (assumes conversion happens at year start)
+        roth_ira = (roth_ira + conversion) * (1 + investment_return)
         
         year_data['Trad_IRA_End'] = trad_ira
         year_data['Roth_IRA_End'] = roth_ira
