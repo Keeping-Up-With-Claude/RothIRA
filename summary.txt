@@ -1,0 +1,13 @@
+Looking at the final results:
+Baseline (no conversions): $3.68M final assets, $1.47M lifetime taxes
+With conversions: $4.55M final Roth assets, $1.51M lifetime taxes
+The key insight is that despite paying slightly MORE in total lifetime taxes ($1.51M vs $1.47M), they end up with $870K MORE in final assets. Here's why:
+
+Tax-free growth dominates: The $1.73M converted grows tax-free for decades. Even though they pay ~$78K/year in taxes during conversion years, that converted money compounds at 7% without any future tax drag.
+Avoiding the RMD tax spike: Without conversions, when Chris hits age 73, large RMDs force income well into the 32%+ brackets. With conversions, the Traditional IRA is depleted before RMDs begin, so they avoid those high-bracket forced distributions.
+Lower taxation of Social Security: Smaller Traditional IRA balances mean lower RMDs, which means less of their Social Security gets taxed (up to 85% can be taxable based on provisional income).
+More years of compounding: Money moved to Roth in 2026-2033 gets 20-30+ years of tax-free growth versus staying in Traditional and being forced out via RMDs at higher tax rates.
+
+The slightly higher total taxes paid are essentially an "investment" that unlocks decades of tax-free compounding. It's classic tax arbitrage: pay 24% now to avoid 32%+ later, while gaining tax-free growth.
+
+

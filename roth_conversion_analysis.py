@@ -207,30 +207,35 @@ def run_scenario(scenario_name, do_conversions=False):
         year_data['Taxable_Income'] = taxable_income
         year_data['Federal_Tax'] = federal_tax
         
-        # Total IRA distribution (all coming out of traditional IRA)
-        # This includes: RMD (for spending/taxes) + Conversion (to Roth) + Additional (for spending/taxes)
+        # Total IRA distribution
+        # Before Traditional IRA is depleted: all comes from Traditional
+        # After Traditional IRA is depleted: comes from Roth
         total_ira_distribution = rmd + conversion + additional_withdrawal
         year_data['Total_IRA_Distribution'] = total_ira_distribution
         
         # Update balances
-        # Traditional IRA: 
-        # - Starts with beginning balance
-        # - Grows at 7% during the year
-        # - Distributions taken at end of year (simplified assumption)
-        # More accurate: assume distributions taken mid-year, so average balance earns return
-        
-        # For simplicity, let's assume beginning balance grows all year, then distributions taken at end
+        # Traditional IRA: grows first, then distributions taken
         trad_ira_growth = trad_ira * investment_return
         trad_ira_after_growth = trad_ira * (1 + investment_return)
-        trad_ira = max(0, trad_ira_after_growth - total_ira_distribution)
         
-        # Roth IRA: add conversions at beginning of year, then entire balance grows
-        # This is conservative (assumes conversion happens at year start)
+        # Check if we have enough in Traditional IRA for all distributions
+        if trad_ira_after_growth >= total_ira_distribution:
+            # All distributions come from Traditional
+            trad_ira = trad_ira_after_growth - total_ira_distribution
+            roth_distribution = 0
+        else:
+            # Traditional IRA gets depleted, remainder comes from Roth
+            trad_distribution = trad_ira_after_growth
+            roth_distribution = total_ira_distribution - trad_ira_after_growth
+            trad_ira = 0
+        
+        # Roth IRA: add conversions, grow, then subtract any distributions
         roth_ira_growth = (roth_ira + conversion) * investment_return
-        roth_ira = (roth_ira + conversion) * (1 + investment_return)
+        roth_ira = (roth_ira + conversion) * (1 + investment_return) - roth_distribution
         
         year_data['Trad_IRA_Growth'] = trad_ira_growth
         year_data['Trad_IRA_End'] = trad_ira
+        year_data['Roth_Distribution'] = roth_distribution
         year_data['Roth_IRA_Growth'] = roth_ira_growth
         year_data['Roth_IRA_End'] = roth_ira
         year_data['Total_Assets_End'] = trad_ira + roth_ira
