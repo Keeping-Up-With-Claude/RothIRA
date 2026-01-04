@@ -176,26 +176,51 @@ def run_scenario(scenario_name, do_conversions=False):
         spending_need = annual_spending_need * ((1 + inflation_rate) ** years_since_2026)
         year_data['Spending_Need'] = spending_need
         
-        # Calculate additional withdrawal needed from IRA to cover spending and taxes
-        # Total needed = Spending + Taxes - SS
+        # Now we need to figure out total cash needed and where it comes from
+        # Cash needs: Spending + Federal Tax
+        # Cash sources: Social Security + IRA withdrawals
+        
+        # The federal tax includes tax on the conversion
+        # So we need additional IRA withdrawal to pay: (spending need - SS) + taxes
+        
         total_cash_needed = spending_need + federal_tax
         cash_from_ss = total_ss
-        additional_needed = max(0, total_cash_needed - cash_from_ss - total_trad_withdrawal)
+        cash_needed_from_ira = max(0, total_cash_needed - cash_from_ss)
+        
+        # But we've already withdrawn RMD + conversion
+        # We need additional withdrawal for: cash_needed_from_ira - (RMD + conversion)
+        # But this creates a problem: conversion is going to Roth, not available for spending
+        
+        # Let me recalculate properly:
+        # - RMD: must be taken, available for spending/taxes
+        # - Conversion: goes to Roth, NOT available for spending
+        # - Additional: needed to cover (spending + all taxes - SS - RMD)
+        
+        cash_available_for_spending = rmd  # Only RMD is available as cash
+        additional_needed = max(0, total_cash_needed - cash_from_ss - cash_available_for_spending)
         
         year_data['Additional_Withdrawal'] = additional_needed
         
-        # Total IRA distribution
-        total_ira_distribution = total_trad_withdrawal + additional_needed
+        # Total IRA distribution (all coming out of traditional IRA)
+        # This includes: RMD (for spending/taxes) + Conversion (to Roth) + Additional (for spending/taxes)
+        total_ira_distribution = rmd + conversion + additional_needed
         year_data['Total_IRA_Distribution'] = total_ira_distribution
         
         # Update balances
-        # Traditional IRA: subtract distributions, add growth
-        trad_ira = max(0, trad_ira - total_ira_distribution)
-        trad_ira = trad_ira * (1 + investment_return)
+        # Traditional IRA: 
+        # - Starts with beginning balance
+        # - Grows at 7% during the year
+        # - Distributions taken at end of year (simplified assumption)
+        # More accurate: assume distributions taken mid-year, so average balance earns return
         
-        # Roth IRA: add conversions (net of tax paid from IRA), add growth
-        roth_ira = roth_ira + conversion
-        roth_ira = roth_ira * (1 + investment_return)
+        # For simplicity, let's assume beginning balance grows all year, then distributions taken at end
+        trad_ira_after_growth = trad_ira * (1 + investment_return)
+        trad_ira = max(0, trad_ira_after_growth - total_ira_distribution)
+        
+        # Roth IRA: add conversions, then grow
+        # Conversion happens during year, so let's assume it grows for half the year
+        roth_ira_after_growth = roth_ira * (1 + investment_return)
+        roth_ira = roth_ira_after_growth + (conversion * (1 + investment_return)**0.5)
         
         year_data['Trad_IRA_End'] = trad_ira
         year_data['Roth_IRA_End'] = roth_ira
