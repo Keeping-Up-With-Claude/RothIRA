@@ -116,94 +116,101 @@ def run_scenario(scenario_name, do_conversions=False):
             rmd = 0
         year_data['RMD'] = rmd
         
-        # Roth conversion
-        conversion = 0
-        if do_conversions and chris_age < 73:  # Convert before RMDs start
-            # Calculate how much we can convert to fill 24% bracket
-            # Start with provisional income from SS
-            tentative_agi = rmd  # Start with RMD if applicable
-            
-            # Calculate taxable SS based on tentative AGI
-            taxable_ss = calculate_ss_taxable(total_ss, tentative_agi)
-            
-            # Standard deduction adjusted for both 65+
-            std_deduction = standard_deduction_2026 if both_alive else standard_deduction_2026 * 0.7
-            
-            # Top of 24% bracket
-            top_of_24_bracket = 383_900
-            
-            # Maximum taxable income we want
-            max_taxable_income = top_of_24_bracket
-            
-            # Work backwards to find conversion amount
-            # Taxable income = AGI - standard deduction
-            # AGI = RMD + Conversion + Taxable SS
-            # This is iterative because taxable SS depends on AGI
-            
-            for test_conversion in range(0, int(trad_ira), 10000):
-                test_agi = rmd + test_conversion
-                test_taxable_ss = calculate_ss_taxable(total_ss, test_agi)
-                test_taxable_income = test_agi + test_taxable_ss - std_deduction
-                
-                if test_taxable_income > max_taxable_income:
-                    conversion = max(0, test_conversion - 10000)
-                    break
-            else:
-                # Can convert entire IRA and still be in 24% bracket
-                conversion = trad_ira
-        
-        year_data['Roth_Conversion'] = conversion
-        
-        # Total withdrawals from traditional IRA
-        total_trad_withdrawal = rmd + conversion
-        
-        # AGI calculation
-        agi = total_trad_withdrawal
-        taxable_ss = calculate_ss_taxable(total_ss, agi)
-        year_data['Taxable_SS'] = taxable_ss
-        
-        # Taxable income
-        std_deduction = standard_deduction_2026 if both_alive else standard_deduction_2026 * 0.7
-        taxable_income = max(0, agi + taxable_ss - std_deduction)
-        year_data['Taxable_Income'] = taxable_income
-        
-        # Federal tax
-        federal_tax = calculate_federal_tax(taxable_income, tax_brackets_2026)
-        year_data['Federal_Tax'] = federal_tax
-        
-        # Spending need (inflated)
+        # Spending need (inflated) - calculate this early as it's needed for conversion sizing
         years_since_2026 = year - 2026
         spending_need = annual_spending_need * ((1 + inflation_rate) ** years_since_2026)
         year_data['Spending_Need'] = spending_need
         
-        # Now we need to figure out total cash needed and where it comes from
-        # Cash needs: Spending + Federal Tax
-        # Cash sources: Social Security + IRA withdrawals
+        # Roth conversion
+        conversion = 0
+        if do_conversions and chris_age < 73:  # Convert before RMDs start
+            # We need to find the conversion amount that fills the 24% bracket
+            # But additional withdrawal also affects AGI, so we need nested iteration
+            
+            std_deduction = standard_deduction_2026 if both_alive else standard_deduction_2026 * 0.7
+            top_of_24_bracket = 383_900
+            
+            # Binary search for optimal conversion
+            best_conversion = 0
+            
+            for test_conversion in range(0, int(trad_ira) + 1, 5000):
+                # For this test conversion, calculate the additional withdrawal needed
+                additional_withdrawal = 0
+                
+                for iter in range(10):
+                    total_withdrawal = rmd + test_conversion + additional_withdrawal
+                    agi = total_withdrawal
+                    taxable_ss = calculate_ss_taxable(total_ss, agi)
+                    taxable_income = max(0, agi + taxable_ss - std_deduction)
+                    federal_tax = calculate_federal_tax(taxable_income, tax_brackets_2026)
+                    
+                    cash_needed = spending_need + federal_tax
+                    cash_available = total_ss + rmd
+                    new_additional = max(0, cash_needed - cash_available)
+                    
+                    if abs(new_additional - additional_withdrawal) < 1:
+                        break
+                    additional_withdrawal = new_additional
+                
+                # Check if this conversion keeps us in 24% bracket
+                if taxable_income <= top_of_24_bracket:
+                    best_conversion = test_conversion
+                else:
+                    # We've exceeded the bracket, use previous value
+                    break
+            
+            conversion = best_conversion
         
-        # The federal tax includes tax on the conversion
-        # So we need additional IRA withdrawal to pay: (spending need - SS) + taxes
+        year_data['Roth_Conversion'] = conversion
         
-        total_cash_needed = spending_need + federal_tax
-        cash_from_ss = total_ss
-        cash_needed_from_ira = max(0, total_cash_needed - cash_from_ss)
+        # Total withdrawals from traditional IRA (will be recalculated with additional)
         
-        # But we've already withdrawn RMD + conversion
-        # We need additional withdrawal for: cash_needed_from_ira - (RMD + conversion)
-        # But this creates a problem: conversion is going to Roth, not available for spending
+        # Standard deduction
+        std_deduction = standard_deduction_2026 if both_alive else standard_deduction_2026 * 0.7
         
-        # Let me recalculate properly:
-        # - RMD: must be taken, available for spending/taxes
-        # - Conversion: goes to Roth, NOT available for spending
-        # - Additional: needed to cover (spending + all taxes - SS - RMD)
+        # Now we need to solve for additional withdrawal iteratively
+        # because additional withdrawal increases AGI, which increases tax, which increases withdrawal needed
+        # Start with initial estimate based on conversion + RMD
+        additional_withdrawal = 0
         
-        cash_available_for_spending = rmd  # Only RMD is available as cash
-        additional_needed = max(0, total_cash_needed - cash_from_ss - cash_available_for_spending)
+        for iteration in range(10):  # Should converge quickly
+            # Total traditional IRA withdrawal
+            total_trad_withdrawal = rmd + conversion + additional_withdrawal
+            
+            # AGI calculation
+            agi = total_trad_withdrawal
+            taxable_ss = calculate_ss_taxable(total_ss, agi)
+            
+            # Taxable income
+            taxable_income = max(0, agi + taxable_ss - std_deduction)
+            
+            # Federal tax
+            federal_tax = calculate_federal_tax(taxable_income, tax_brackets_2026)
+            
+            # Cash needs: Spending + Tax
+            # Cash sources: SS + RMD + Additional (conversion goes to Roth, not available for spending)
+            total_cash_needed = spending_need + federal_tax
+            cash_from_ss_and_rmd = total_ss + rmd
+            
+            # Calculate new additional withdrawal needed
+            new_additional = max(0, total_cash_needed - cash_from_ss_and_rmd)
+            
+            # Check convergence
+            if abs(new_additional - additional_withdrawal) < 1:
+                additional_withdrawal = new_additional
+                break
+            
+            additional_withdrawal = new_additional
         
-        year_data['Additional_Withdrawal'] = additional_needed
+        # Store final values
+        year_data['Additional_Withdrawal'] = additional_withdrawal
+        year_data['Taxable_SS'] = taxable_ss
+        year_data['Taxable_Income'] = taxable_income
+        year_data['Federal_Tax'] = federal_tax
         
         # Total IRA distribution (all coming out of traditional IRA)
         # This includes: RMD (for spending/taxes) + Conversion (to Roth) + Additional (for spending/taxes)
-        total_ira_distribution = rmd + conversion + additional_needed
+        total_ira_distribution = rmd + conversion + additional_withdrawal
         year_data['Total_IRA_Distribution'] = total_ira_distribution
         
         # Update balances
