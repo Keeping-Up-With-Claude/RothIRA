@@ -124,42 +124,41 @@ def run_scenario(scenario_name, do_conversions=False):
         # Roth conversion
         conversion = 0
         if do_conversions and chris_age < 73:  # Convert before RMDs start
-            # We need to find the conversion amount that fills the 24% bracket
-            # But additional withdrawal also affects AGI, so we need nested iteration
-            
+            # Calculate max we can withdraw to stay at top of 24% bracket
             std_deduction = standard_deduction_2026 if both_alive else standard_deduction_2026 * 0.7
             top_of_24_bracket = 383_900
             
-            # Binary search for optimal conversion
-            best_conversion = 0
+            # Work backwards from taxable income to total withdrawal
+            # Taxable income = AGI + Taxable SS - Std Deduction
+            # We want: Taxable income = 383,900
+            # So: AGI + Taxable SS = 383,900 + 32,300 = 416,200
             
-            for test_conversion in range(0, int(trad_ira) + 1, 5000):
-                # For this test conversion, calculate the additional withdrawal needed
-                additional_withdrawal = 0
-                
-                for iter in range(10):
-                    total_withdrawal = rmd + test_conversion + additional_withdrawal
-                    agi = total_withdrawal
-                    taxable_ss = calculate_ss_taxable(total_ss, agi)
-                    taxable_income = max(0, agi + taxable_ss - std_deduction)
-                    federal_tax = calculate_federal_tax(taxable_income, tax_brackets_2026)
-                    
-                    cash_needed = spending_need + federal_tax
-                    cash_available = total_ss + rmd
-                    new_additional = max(0, cash_needed - cash_available)
-                    
-                    if abs(new_additional - additional_withdrawal) < 1:
-                        break
-                    additional_withdrawal = new_additional
-                
-                # Check if this conversion keeps us in 24% bracket
-                if taxable_income <= top_of_24_bracket:
-                    best_conversion = test_conversion
-                else:
-                    # We've exceeded the bracket, use previous value
-                    break
+            # For simplicity, ignore taxable SS for now (it's 0 until age 67 anyway)
+            # AGI = Total Withdrawal (RMD + Conversion + Additional)
+            target_agi = top_of_24_bracket + std_deduction
             
-            conversion = best_conversion
+            # Calculate tax on this AGI
+            taxable_ss = calculate_ss_taxable(total_ss, target_agi)
+            taxable_income = max(0, target_agi + taxable_ss - std_deduction)
+            tax_at_max = calculate_federal_tax(taxable_income, tax_brackets_2026)
+            
+            # Total cash needed = spending + tax
+            total_cash_needed = spending_need + tax_at_max
+            
+            # Cash available from other sources
+            cash_from_other = total_ss + rmd
+            
+            # Additional withdrawal needed for spending/taxes
+            additional_for_spending = max(0, total_cash_needed - cash_from_other)
+            
+            # Total withdrawal = RMD + Additional + Conversion
+            # We want total withdrawal = target_agi
+            # So: Conversion = target_agi - RMD - Additional
+            max_conversion = target_agi - rmd - additional_for_spending
+            
+            # Can't convert more than we have
+            conversion = min(max_conversion, trad_ira)
+            conversion = max(0, conversion)
         
         year_data['Roth_Conversion'] = conversion
         
