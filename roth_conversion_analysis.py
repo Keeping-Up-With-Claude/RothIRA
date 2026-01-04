@@ -80,6 +80,7 @@ def run_scenario(scenario_name, do_conversions=False):
     # Initialize balances
     trad_ira = initial_ira
     roth_ira = 0
+    taxable_account = 0
     
     year = 2026
     chris_age = chris_age_2026
@@ -101,6 +102,7 @@ def run_scenario(scenario_name, do_conversions=False):
         # Beginning balances
         year_data['Trad_IRA_Begin'] = trad_ira
         year_data['Roth_IRA_Begin'] = roth_ira
+        year_data['Taxable_Begin'] = taxable_account
         
         # Social Security
         chris_ss = chris_ss_annual if chris_age >= ss_start_age_chris and chris_alive else 0
@@ -238,12 +240,45 @@ def run_scenario(scenario_name, do_conversions=False):
         year_data['Roth_Distribution'] = roth_distribution
         year_data['Roth_IRA_Growth'] = roth_ira_growth
         year_data['Roth_IRA_End'] = roth_ira
-        year_data['Total_Assets_End'] = trad_ira + roth_ira
         
-        # Net spending (what they actually get to spend after taxes)
-        net_available = total_ss + total_ira_distribution - federal_tax
-        year_data['Net_Available'] = net_available
-        year_data['Surplus_Deficit'] = net_available - spending_need
+        # Calculate surplus/deficit
+        # Cash available = SS + RMD + Additional (conversion goes to Roth, not spendable)
+        # Cash needed = Spending + Tax
+        cash_available = total_ss + rmd + additional_withdrawal
+        cash_needed = spending_need + federal_tax
+        surplus_or_deficit = cash_available - cash_needed
+        
+        year_data['Net_Available'] = cash_available
+        year_data['Surplus_Deficit'] = surplus_or_deficit
+        
+        # Taxable account handling
+        # First, grow existing balance
+        taxable_growth = taxable_account * investment_return
+        taxable_account_after_growth = taxable_account * (1 + investment_return)
+        
+        # Then handle surplus/deficit
+        if surplus_or_deficit > 0:
+            # Excess cash goes into taxable account
+            taxable_account = taxable_account_after_growth + surplus_or_deficit
+            taxable_contribution = surplus_or_deficit
+            taxable_withdrawal = 0
+        elif surplus_or_deficit < 0 and taxable_account_after_growth > 0:
+            # Need to withdraw from taxable to cover shortfall
+            taxable_withdrawal = min(abs(surplus_or_deficit), taxable_account_after_growth)
+            taxable_account = taxable_account_after_growth - taxable_withdrawal
+            taxable_contribution = 0
+            # Note: This withdrawal would trigger capital gains tax, but we'll simplify for now
+        else:
+            # No surplus and no taxable account to draw from
+            taxable_account = taxable_account_after_growth
+            taxable_contribution = 0
+            taxable_withdrawal = 0
+        
+        year_data['Taxable_Growth'] = taxable_growth
+        year_data['Taxable_Contribution'] = taxable_contribution
+        year_data['Taxable_Withdrawal'] = taxable_withdrawal
+        year_data['Taxable_End'] = taxable_account
+        year_data['Total_Assets_End'] = trad_ira + roth_ira + taxable_account
         
         results.append(year_data)
         
